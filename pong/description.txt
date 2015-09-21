@@ -1,0 +1,4 @@
+~~ Quiz 1 ~~
+
+- Create a "pong"-like game, with moveable paddle, angle calculation, and a basic AI.
+- Nothing special about this one, I only did the basics. Still pretty fun!

@@ -1,0 +1,476 @@
+<!-- 
+Austin Lasher
+CAP4720 - Computer Graphics
+Quiz 1 - Pong
+
+
+A couple new features:
+a) Paddle angles galore. Traditional Pong-style angles for the user, and simple wall-bounce for the computer.
+b) An AI that's actually beatable! (unlike before)
+c) A pause feature! (Just press S)
+d) Random starting angles, all configurable
+e) The losing player gets the ball first, instead of always the human player.
+f) A nice, clean new size layout, and some cool colors!
+
+
+-->
+
+<html>
+
+<head>
+
+	<title>Angry Birds!</title>
+	<script src="libs/three.js"></script>
+	<script src="libs/physi.js"></script>
+	<script src="libs/keyboard.js"></script>
+	<script src="libs/jquery-2.1.4.min.js"></script>
+	<script src="fonts/helvetiker_regular.typeface.js"></script>
+
+	<style type="text/css">
+
+	html {
+		height: 100%;
+		overflow: hidden;
+	}
+
+	body {
+		margin: 0;
+		padding: 0;
+		height: 100%;
+		overflow: auto;
+		
+		color: #fff;
+		font-family: "Lucida Console", monospace;
+	}
+	
+	#panel {
+		width: 250px;
+		position: absolute;
+		top: 25;
+		right: 25;
+		border: 1px solid #222;
+		background-color: #111;
+		padding: 8px;
+		color: #d8d8d8;
+		text-align: right;
+		font-size: 12px;
+		line-height: 1.3em;
+	}
+
+	</style>
+
+</head>
+
+<body>
+
+<div id="panel">
+~~ Controls ~~<br/>
+WASD: Move Cannon<br/>
+Space: Launch Cannonball<br />
+E: Increase velocity<br>
+Q: Decrease velocity<br>
+Current Velocity: <span id="veloc"></span><br>
+Game by <a href="http://github.com/alasher">Austin Lasher</a><Br><br>
+Board will <i>automatically</i> reset when all the targets are down!
+</div>
+
+<script>
+
+	// var MAX_Z = 5*PI/12;
+	// var MIN_Z = 0;
+	// var MAX_Y = PI/4;
+	// var MIN_Y = -1*MAX_Z;
+
+	var renderer;
+	var scene;
+	var camera;
+	var plane;
+	var cannon, cannonBase;
+	var ball;
+	var velocity = 4500;
+	var targets = [];
+	var edges = [];
+	var scoreText;
+	var score = 0;
+	var targetsLeft = 0;
+	
+	var ballAngleX, ballAngleY, ballAngleZ; //these are the components of the ball's direction vector
+	
+	var launchAudio, scoreAudio;
+	
+	// color scheme, "Sea Wolf" from color.adobe.com
+	var RED = 0xDC3522;
+	var CREAM = 0xD9CB9E;
+	var NAVY = 0x374140;
+	var GRAY = 0x2A2C2B;
+	var DARK = 0x1E1E20;
+	
+	var PI = 3.14159265;
+	
+	Physijs.scripts.worker = 'libs/physijs_worker.js';
+	Physijs.scripts.ammo = 'ammo.js';
+	
+	
+	function init() {
+		
+		// Make a new Physi.js scene
+		scene = new Physijs.Scene();
+		scene.setGravity(new THREE.Vector3( 0, -50, 0 ));
+		scene.addEventListener("update", function() {
+			scene.simulate();
+		});
+		
+		// Initialize our camera
+		camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.1, 1000 );
+		camera.position.x = 0;
+		camera.position.y = 30;
+		camera.position.z = 170;
+		camera.rotation.x = 0.03;
+		//camera.lookAt( scene.position );
+		
+		// Initialize our rendererererer
+		renderer = new THREE.WebGLRenderer();
+		renderer.setClearColor( DARK , 1.0 );
+		renderer.setSize( window.innerWidth, window.innerHeight );
+		renderer.shadowMapEnabled = true;
+		
+		
+        // add spotlight for the shadows
+        var spotLight = new THREE.SpotLight( 0xffffff );
+        spotLight.position.set( 0, 200, 0);
+        spotLight.shadowCameraNear = 10;
+        spotLight.shadowCameraFar = 100;
+        spotLight.castShadow = true;
+		spotLight.intensity = 1.5;
+        scene.add(spotLight);
+        
+        var frontLight = new THREE.SpotLight( 0xffffff );
+        frontLight.position.set(0,0,200);
+        frontLight.intensity = 0.6;
+        scene.add(frontLight);
+        
+        var box = new Physijs.BoxMesh(
+            new THREE.BoxGeometry( 5, 5, 5 ),
+            new THREE.MeshBasicMaterial({ color: 0x888888 })
+        );
+        
+        
+        // Do all my initialization!
+        loadAudio();
+        updateScore();
+        updateVelocity();
+        addGround();
+        makeCannon();
+        
+        //makeTargets();
+        makeGiantPyramid();
+        
+        scene.simulate();
+        
+		document.body.appendChild( renderer.domElement );
+		render();
+	}
+	
+	function loadAudio() {
+		launchAudio = new Audio("audio/launch.mp3");
+		scoreAudio = new Audio("audio/knockout.mp3");
+	}
+	
+	function updateVelocity() {
+		document.getElementById("veloc").innerHTML = velocity;
+	}
+	
+	function addGround() {
+        var texture = THREE.ImageUtils.loadTexture('img/concrete.jpg');
+		var planeMaterial = new Physijs.createMaterial(new THREE.MeshLambertMaterial({map:texture}), 0.3, .8 );
+		var planeGeometry = new THREE.BoxGeometry( 200, 5, 100 );
+		plane = new Physijs.BoxMesh( planeGeometry, planeMaterial, 0);
+		plane.position.x = 0;
+		plane.position.y = -5;
+		plane.position.z = 0;
+		scene.add( plane );
+		
+		var groundedges = new THREE.EdgesHelper( plane, DARK );
+		scene.add( groundedges );
+	}
+	
+	function makeCannon() {
+		var cylinderGeometry = new THREE.CylinderGeometry( 5, 7, 30, 8 );
+		var cylinderMaterial = new THREE.MeshLambertMaterial({color: GRAY});
+		
+		// move the cylinder such that it rotates on its end rather than its center
+		cylinderGeometry.applyMatrix( new THREE.Matrix4().makeTranslation( 0, 15, 0 ) );
+		
+		var can = new THREE.Mesh( cylinderGeometry, cylinderMaterial );
+		
+		cannon = new THREE.Object3D();
+		cannon.add( can );
+		
+		cannon.position.y = 7;
+		cannon.position.x = -75;
+		cannon.rotation.z -= PI/3;
+		
+		scene.add( cannon );
+		
+		// Now, let's make a box to contain the back of the cannon.
+		cannonBase = new THREE.Mesh(
+			new THREE.BoxGeometry(16, 16, 16),
+			new THREE.MeshBasicMaterial({color: GRAY})
+		);
+		
+		cannonBase.position.x = -75;
+		cannonBase.position.y = 5;
+		
+		var cannonBaseEdge = new THREE.EdgesHelper( cannonBase, DARK );
+		
+		scene.add(cannonBase);
+		scene.add(cannonBaseEdge);
+	}
+	
+	function makeTargets() {
+		var numTargets = Math.floor((Math.random()*2)+3);
+		for(var i = 0; i < numTargets; i++) {
+			// split num up over the z width
+			// put each num evenly at random x distance away
+			var isCastle = Math.random() >= 0.5;
+			var zPos = -40 + (85/numTargets)*i;
+			var xPos = -20 + Math.random()*100;
+			if(isCastle) makeCastle(xPos, zPos);
+			else makeTarget(getRandomType(), Math.round(Math.random()*30+10), xPos, 0, zPos);
+		}
+	}
+	
+	function makeCastle(x, z) {
+		makeTarget(getRandomType(), 10, x, 0, z);
+        makeTarget(getRandomType(), 10, x-10, 0, z);
+        makeTarget(getRandomType(), 10, x, 0, z+12);
+        makeTarget(getRandomType(), 10, x-10, 0, z+12);
+        makeTarget(getRandomType(), 15, x-5, 11, z+7);
+	}
+	
+	function makeGiantPyramid() {
+		var width = 40;
+		// first is on 10, last is on 90
+		// increment starting value by 4
+		for(var k = 0; k <= 40; k+=5) {
+			
+			for(var i = -40 + k; i <= width-k; i+=10) {
+			// 10, 18, 27, ...
+				for(var j = -20+k; j <= width+20-k; j+= 10) {
+					makeTarget("box", 8, j, (k/5)*8, i);
+				}
+			}
+		}
+		
+	}
+	
+	var targetTypes = ["box", "cylinder"];
+	function getRandomType() {
+		return targetTypes[Math.floor(Math.random()*targetTypes.length)];
+	}
+	
+	// radius is 2.5, length/width is 5
+	function makeTarget(type, height, ix, iy, iz) {
+		
+		var targetMaterial = new Physijs.createMaterial( new THREE.MeshLambertMaterial({color: RED}) );
+		var targetGeom, targ;
+		switch(type) {
+			case "box":
+				targetGeom = new THREE.BoxGeometry(8, height, 8);
+				targ = new Physijs.BoxMesh(targetGeom, targetMaterial, 5);
+				break;
+			case "cylinder":
+			default:
+				targetGeom = new THREE.CylinderGeometry(4, 4, height);
+				targ = new Physijs.CylinderMesh(targetGeom, targetMaterial, 40);
+		}
+		
+		targ.position.x = ix;
+		targ.position.y += height/2 + iy - 2.5;
+		targ.position.z = iz;
+		targets.push(targ);
+		scene.add(targ);
+		
+		var targedge = new THREE.EdgesHelper( targ, DARK );
+		edges.push(targedge);
+		scene.add(targedge);
+		
+		targetsLeft++;
+	}
+	
+	// Man I'm really glad I took Calc. 3 before I took this class
+	// Input: the magnitude (could be cannon radius or ball velocity for firing)
+	// Output: vector coordinates for ball based on cannon
+	function getBallAngles(magnitude) {
+		var angle, radiusProjection;
+		
+		// First, the height, and find the projection of the radius onto XZ-plane
+		// The x and z positions depend on that projected radius
+		angle = cannon.rotation.z + PI/2;
+		radiusProjection = magnitude*Math.cos(angle);
+		ballAngleY = magnitude*Math.sin(angle);
+		
+		// Now, the position on the XZ-Plane
+		angle = cannon.rotation.y;
+		ballAngleX = radiusProjection*Math.cos(angle);
+		ballAngleZ = -1*radiusProjection*Math.sin(angle);
+	}
+	
+	function makeCannonball() {
+		var texture = THREE.ImageUtils.loadTexture('img/balltexture.jpg');
+		var ballGeometry = new THREE.SphereGeometry( 3 );
+		var ballMaterial = Physijs.createMaterial( new THREE.MeshLambertMaterial({map:texture}), .95, .95 );
+		ball = new Physijs.SphereMesh( ballGeometry, ballMaterial, 75 );
+		
+		getBallAngles(30);
+		
+		ball.position.x = cannon.position.x + ballAngleX;
+		ball.position.y = cannon.position.y + ballAngleY;
+		ball.position.z = cannon.position.z + ballAngleZ;
+	}
+	
+	function updateScore() {
+		
+		if(scoreText !== undefined) scene.remove(scoreText);
+		
+		var textMat = new THREE.MeshPhongMaterial({
+			color: CREAM
+		});
+		var textGeom = new THREE.TextGeometry( "Score: " + score, {
+			font: 'helvetiker',
+			size: 10,
+			height: 5
+		});
+		
+		var textMesh = new THREE.Mesh( textGeom, textMat );
+		textMesh.rotation.x = -PI/8;
+		textMesh.position.x -= 25;
+		textMesh.position.y += 75;
+		textMesh.position.z -= 20;
+		
+		scoreText = textMesh;
+		scene.add(scoreText);
+	}
+	
+	
+	function fireCannon() {
+		var angle = cannon.rotation.z + PI/2; // we add pi/2 to match our orientation
+		
+		makeCannonball();
+		scene.add(ball);
+		
+		getBallAngles(velocity);
+		ball.applyCentralImpulse(new THREE.Vector3(ballAngleX, ballAngleY, ballAngleZ));
+		
+		launchAudio.play();
+	}
+	
+	// Have any of our targets fallen under the floor? let's check!
+	function checkTargets() {
+		for(var i = 0; i < targets.length; i++) {
+			if(targets[i].position.y >= plane.position.y) continue;
+			
+			// if we're here, it's definitely under
+			// remove from scene, then delete from targets array
+			console.log("target",i," has fallen under the floor");
+			scene.remove(targets[i]);
+			scene.remove(edges[i]);
+			delete targets[i];
+			delete edges[i];
+			targets = deleteNthElement(targets, i);
+			edges = deleteNthElement(edges, i);
+			score++;
+			i--;
+			
+			if(--targetsLeft == 0) {
+				// Just a little surprise for anyone who bothers downloading this from my github and actually playing it ;)
+				if(score < 25) {
+					makeGiantPyramid();
+				} else {
+					makeTargets();
+				}
+			}
+			
+			updateScore();
+			scoreAudio.play();
+		}
+	}
+	
+	function deleteNthElement(arr, n) {
+		return arr.slice(0,n).concat(arr.slice(n+1));
+	}
+	
+	function keyboardpresses() {
+		if(Key.isDown(Key.A)) {
+			cannon.rotation.y += 0.02;
+			cannonBase.rotation.y += 0.02;
+		}
+		if(Key.isDown(Key.D)) {
+			cannon.rotation.y -= 0.02;
+			cannonBase.rotation.y -= 0.02;
+		}
+		if(Key.isDown(Key.W)) {
+			//camera.rotation.x += 0.01;
+			cannon.rotation.z += 0.02;
+		}
+		if(Key.isDown(Key.S)) {
+			//camera.rotation.x -= 0.01;
+			cannon.rotation.z -= 0.02;
+		}
+		
+		if(Key.isDown(Key.E)) {
+			if(velocity <= 10000) velocity += 1000;
+			updateVelocity();
+			Key._pressed[Key.E] = false;
+		}
+		
+		if(Key.isDown(Key.Q)) {
+			if(velocity >= 1000) velocity -= 1000;
+			updateVelocity();
+			Key._pressed[Key.Q] = false;
+		}
+		
+		
+		if(Key.isDown(Key.F)) {
+			camera.position.y -= 5;
+		}
+		if(Key.isDown(Key.H)) {
+			camera.position.y += 5;
+		}
+		if(Key.isDown(Key.G)) {
+			camera.position.z -= 5;
+		}
+		if(Key.isDown(Key.T)) {
+			camera.position.z += 5;
+		}
+		
+		if(Key.isDown(Key.SPACE)) {
+			fireCannon();
+			Key._pressed[Key.SPACE] = false;
+		}
+	}
+	
+	function render()
+	{
+		keyboardpresses();
+		checkTargets();
+		
+		requestAnimationFrame( render );
+		renderer.render( scene, camera );
+	}
+	
+	window.onload = init;
+	window.addEventListener("resize", onWindowResize, false);
+	
+	function onWindowResize() {
+		camera.aspect = window.innerWidth / window.innerHeight;
+    	camera.updateProjectionMatrix();
+    	renderer.setSize( window.innerWidth, window.innerHeight );
+	}
+	
+	
+</script>
+
+</body>
+
+</html>

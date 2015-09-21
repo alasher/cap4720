@@ -1,0 +1,5 @@
+~~ Quiz 2 ~~
+
+- Create an "Angry Birds" copy, with a moveable cannon and knockable turrets.
+- Go ahead and knock down all the targets!
+- Round two is always the best. ;)
