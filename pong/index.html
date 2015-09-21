@@ -1,0 +1,405 @@
+<!-- 
+Austin Lasher
+CAP4720 - Computer Graphics
+Quiz 1 - Pong
+
+
+A couple new features:
+a) Paddle angles galore. Traditional Pong-style angles for the user, and simple wall-bounce for the computer.
+b) An AI that's actually beatable! (unlike before)
+c) A pause feature! (Just press S)
+d) Random starting angles, all configurable
+e) The losing player gets the ball first, instead of always the human player.
+f) A nice, clean new size layout, and some cool colors!
+
+
+-->
+
+<html>
+
+<head>
+<script src="libs/three.js"></script>
+<script src="libs/keyboard.js"></script>
+<script src="jquery-2.1.4.min.js"></script>
+
+<style type="text/css">
+
+html {
+	height: 100%;
+	overflow: hidden;
+}
+
+body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	overflow: auto;
+	
+	color: #fff;
+	font-family: "Helvetica Neue", "Arial", sans-serif;
+}
+
+#score {
+	position: absolute;
+	width: 500px;
+	height: 25px;
+	left: 50%;
+	top: 50%;
+	margin-left: -250px;
+	text-align: center;
+	margin-top: -322px;
+    font-size: 2em;
+    font-weight: bold;
+}
+
+#totals {
+    position: absolute;
+    width: 500px;
+    height: 25px;
+    left: 50%;
+    bottom: 50%;
+    margin-left: -250px;
+    text-align: center;
+    margin-bottom: -310px;
+    font-size: 1em;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="score">
+You: <span id="yourscore"></span> - Computer: <span id="compscore"></span>
+</div>
+
+<div id="totals">
+<span id="yourwins">0</span>-<span id="compwins">0</span>
+<br/>
+<span id="whatarethose"></span>
+</div>
+
+<script>
+	var renderer;
+	var scene;
+	var camera;
+	
+	var PI = 3.1415926535;
+	
+	// useful constants
+	var PADDLE_HIT_THRESH = 1.4; // the threshold at which the ball is considered hit (paddle->ball) dist <= this value
+	var MAX_HIT_ANGLE = PI/4; // maximum degrees
+	var RANDOM_SPREAD = PI/4;
+	var BALL_START_SPEED = 0.09; // this is constant for now
+	var BALL_SPEED_INC = 0.015;
+	var PLANE_W = 16; // plane width
+	var PLANE_H = 20; // plane height
+	var PADDLE_SPEED = 0.15;
+	var PADDLE_SPEED_COMP = 0.10;
+	var WAIT_START = 2000; // time to wait before restarting, in milliseconds
+	var SCORE_WIN = 21;
+	
+	// color scheme, "Sea Wolf" from color.adobe.com
+	var RED = 0xDC3522;
+	var CREAM = 0xD9CB9E;
+	var NAVY = 0x374140;
+	var GRAY = 0x2A2C2B;
+	var DARK = 0x1E1E20;
+	
+	// Geometry stuff
+	var speed = BALL_START_SPEED;
+	var pause = false;
+	var angle;// = 3*PI/2; // angle is in radians, from [0, 2*PI)
+	angle = getRandomStartAngle(true);
+	
+	var computerWins = 0;
+	var userWins = 0;
+	updateScores();
+	var userMatchWins = 0;
+	var compMatchWins = 0;
+	
+	var xDir, yDir;
+	setDirection(speed, angle);
+	
+	function createPlayBottom()
+	{
+		var planeGeometry = new THREE.PlaneGeometry( PLANE_W, PLANE_H, 10, 10 );
+		var planeMaterial = new THREE.MeshBasicMaterial({color: NAVY});
+		var plane = new THREE.Mesh( planeGeometry, planeMaterial );
+		scene.add(plane);
+	}
+	
+	function createBoundingWalls()
+	{
+		var leftWall = new THREE.BoxGeometry( 0.5, 20, 0.5 );
+		var wallMaterial = new THREE.MeshBasicMaterial({color: CREAM});
+		var wall1 = new THREE.Mesh( leftWall, wallMaterial );
+		wall1.position.x = -8;
+		scene.add( wall1 );
+		
+		var edges1 = new THREE.EdgesHelper( wall1, GRAY );
+		scene.add( edges1 );
+		
+		var rightWall = new THREE.BoxGeometry( 0.5, 20, 0.5 );
+		var wall2 = new THREE.Mesh( rightWall, wallMaterial );
+		wall2.position.x = 8;
+		scene.add( wall2 );
+
+		var edges2 = new THREE.EdgesHelper( wall2, GRAY );
+		scene.add( edges2 );
+	}
+
+	var paddle1, paddle2;	
+	function createPaddles()
+	{
+		var opponentPaddle = new THREE.BoxGeometry( 2, .5, 3 );
+		var paddleMaterial = new THREE.MeshBasicMaterial({color: RED});
+		paddle1 = new THREE.Mesh( opponentPaddle, paddleMaterial );
+		
+		scene.add( paddle1 );
+		
+		var edges1 = new THREE.EdgesHelper( paddle1, DARK );
+		scene.add( edges1 );
+		
+		var playerPaddle = new THREE.BoxGeometry( 2, .5, 3 );
+		paddle2 = new THREE.Mesh( playerPaddle, paddleMaterial );
+		
+		paddle1.position.y = 9;
+		paddle2.position.y = -9;
+		
+		scene.add( paddle2 );
+		
+		var edges2 = new THREE.EdgesHelper( paddle2, DARK );
+		scene.add( edges2 );
+	}
+	
+	var ball;
+	function createBall() {
+		var ballSphere = new THREE.SphereGeometry( .5 );
+		var ballMaterial = new THREE.MeshBasicMaterial({color: DARK});
+		ball = new THREE.Mesh( ballSphere, ballMaterial );
+		scene.add( ball );
+	}
+	
+	
+	function movePaddles() {
+		// x max = LEFT_WALL_DIST - PADDLE_WIDTH/2;
+		// x min = -1 * x max;
+		//var xmax = 
+		
+		if( Key.isDown( Key.A )) {
+			paddle2.position.x -= PADDLE_SPEED;
+		} else if( Key.isDown( Key.D )) {
+			paddle2.position.x += PADDLE_SPEED;
+		}
+		
+	}
+	
+	function moveBall() {
+	
+		ball.position.x += xDir;
+		ball.position.y += yDir;
+		
+		// If the ball hit the left wall, or the right wall
+		if( ball.position.x < -7 && xDir < 0 ) {
+			setDirection(speed, angleFix(3*PI - angle));
+		} else if( ball.position.x > 7 && xDir > 0) {
+			setDirection(speed, angleFix(3*PI - angle));
+		}
+		
+		// if the ball is past the edge, and it's going downward
+		if( ball.position.y < -8.5 && yDir < 0 ) {
+			
+			// if the ball is within the width of wherever the paddle is
+			if( Math.abs( paddle2.position.x - ball.position.x ) <= PADDLE_HIT_THRESH ) {
+				// we've hit the ball
+				speed += BALL_SPEED_INC;
+				setDirection(speed, getAngle(paddle2.position.x, ball.position.x));
+			} else {
+				restart(false);
+			}
+		} else if( ball.position.y > 8.5 && yDir > 0 ) {
+			
+			if( Math.abs( paddle1.position.x - ball.position.x ) <= PADDLE_HIT_THRESH ) {
+				// the computer hit the ball
+				speed += BALL_SPEED_INC;
+				setDirection(speed, reverseAngleDirection(angle));
+			} else {
+				// the computer missed, great success!
+				restart(true);
+			}
+		}
+	}
+	
+	function moveComputerPaddle() {
+		
+		// we have the best AI ever! :)
+		// paddle1.position.x = ball.position.x;
+		if(ball.position.x > paddle1.position.x) {
+			
+			var moveAmount = ball.position.x - paddle1.position.x;
+			moveAmount = (moveAmount > PADDLE_SPEED_COMP) ? PADDLE_SPEED_COMP : moveAmount;
+			paddle1.position.x += moveAmount;
+			
+			
+		} else if(ball.position.x < paddle1.position.x) {
+			var moveAmount =  paddle1.position.x - ball.position.x;
+			moveAmount = (moveAmount > PADDLE_SPEED_COMP) ? PADDLE_SPEED_COMP : moveAmount;
+			paddle1.position.x -= moveAmount;
+		}
+		
+		
+		
+	}
+	
+	function restart(userWon) {
+		if(userWon) userWins++;
+		else computerWins++;
+		
+		if(userWins >= SCORE_WIN || computerWins >= SCORE_WIN) matchEnd(userWon);
+		
+		// update the scoreboard
+		updateScores();
+		
+		// reset the ball position, speed and angle
+		ball.position.x = ball.position.y = 0;
+		setDirection(BALL_START_SPEED, getRandomStartAngle(!userWon));
+		
+	}
+	
+	function matchEnd(userWon) {
+		userWins = computerWins = 0;
+		if(userWon) userMatchWins++;
+		else compMatchWins++;
+		document.getElementById("yourwins").innerHTML = userMatchWins;
+		document.getElementById("compwins").innerHTML = compMatchWins;
+		var msg = userWon ? "WHAT ARE THOSE!!!!!!!!" : "GET DUMPED ON";
+		document.getElementById("whatarethose").innerHTML = msg;
+	}
+	
+	
+	function getAngle(paddleX, ballX) {
+		// if ballX > paddleX, the angle is positive
+		// if ballX < paddleX, the angle is negative
+		var pos = (ballX - paddleX) / PADDLE_HIT_THRESH;
+		
+		if(pos >= 1.0 || pos <= -1.0) return PI/2; // if it didn't actually hit the paddle
+		if(Math.abs(pos) <= 0.001) return PI/2; // if it's close to zero
+		
+		// otherwise, the angle is somewhere between  90 +/- MAX_HIT_ANGLE
+		//console.log("paddle x is", paddleX, "ball x is", ballX);
+		console.log("pos is ", pos);
+		return PI/2 - (pos * MAX_HIT_ANGLE);
+	}
+	
+	// input: radian angle to set
+	// output: void - changes dx/dy to correspond to speed/angle
+	function setDirection(inspeed, theta) {
+		//console.log("setting direction to ", theta, " with a speed of ", inspeed);
+		angle = theta % (2*PI);
+		speed = inspeed;
+		
+		xDir = speed*Math.cos(angle);
+		yDir = speed*Math.sin(angle);
+	}
+	
+	function getRandomStartAngle(userStarts) {
+		var max = PI/2 + RANDOM_SPREAD;
+		var min = PI/2 - RANDOM_SPREAD;
+		var ans = min + (max-min)*Math.random();
+		return (userStarts) ? reverseAngleDirection(ans) : ans;
+	}
+	
+	
+	// input: angle in radians [0, 2*pi)
+	// output: angle reflection accross x axis
+	function reverseAngleDirection(theta) {
+		return 2*PI - theta;
+	}
+	
+	// adds or removes 2*pi from the angle until it's between 0 and 2*pi
+	function angleFix(theta) {
+		//console.log("fixing angle", theta);
+		if(theta >= 0 && theta < 2*PI) return theta;
+		
+		
+		var modifier = 2*PI;
+		if(theta > 2*PI) modifier *= -1;
+		
+		var ans = theta;
+		
+		while(ans < 0 || ans >= 2*PI) {
+			ans += modifier;
+		}
+		
+		return ans;
+	}
+	
+	function init() {
+		scene = new THREE.Scene();
+	
+		camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.1, 1000 );
+		camera.position.x = 0;
+		camera.position.y = 0;
+		camera.position.z = 30;
+		camera.lookAt( scene.position );
+		
+		renderer = new THREE.WebGLRenderer();
+		renderer.setClearColor( 0x000000, 1.0 );
+		renderer.setSize( window.innerWidth, window.innerHeight );
+		renderer.shadowMapEnabled = true;
+		
+		// 1. show a plane representing the bottom of the pong table
+		createPlayBottom();
+		
+		// 2. Create sideboards, which will be parallelapipeds
+		createBoundingWalls();
+		
+		// 3. Create the paddles
+		createPaddles();
+		
+		// 4 Create the ball
+		createBall();
+		
+        // add spotlight for the shadows
+        var spotLight = new THREE.SpotLight( 0xffffff );
+        spotLight.position.set( 10, 20, 20 );
+        spotLight.shadowCameraNear = 20;
+        spotLight.shadowCameraFar = 50;
+        spotLight.castShadow = true;
+        scene.add(spotLight);
+		
+		document.body.appendChild( renderer.domElement );		
+		render();
+	}
+	
+	function checkPause() {
+		if( Key.isDown( Key.S )) {
+			pause = !pause;
+			Key._pressed[Key.S] = false;
+		}
+	}
+	
+	function render()
+	{
+		checkPause();
+		if(!pause) movePaddles();
+		if(!pause) moveBall();
+		if(!pause) moveComputerPaddle();
+		
+		requestAnimationFrame( render );
+		renderer.render( scene, camera );
+	}
+	
+	function updateScores() {
+		document.getElementById("yourscore").innerHTML = userWins;
+		document.getElementById("compscore").innerHTML = computerWins;
+	}
+	
+	window.onload = init;
+</script>
+
+</body>
+
+</html>
