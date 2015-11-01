@@ -1,0 +1,108 @@
+<!--
+
+Austin Lasher
+CAP4720 - Computer Graphics
+Three.js Board Game
+
+-->
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Three.js - UNO!</title>
+	
+	<style type="text/css">
+		html, body {
+			padding: 0;
+			margin: 0;
+		}
+		
+		#container {
+			width: 100%;
+			height: 100%;
+			padding: 0;
+			margin: 0;
+			background-color: #1E1E20;
+			color: #FFFFFF;
+			font-size: 12px;
+			font-family: 
+		}
+	</style>
+	
+</head>
+
+<body>
+	<div id="container">
+	
+	</div>
+	
+	<script type="text/javascript">
+		
+		// color scheme, "Sea Wolf" from color.adobe.com
+		var RED = 0xDC3522;
+		var CREAM = 0xD9CB9E;
+		var NAVY = 0x374140;
+		var GRAY = 0x2A2C2B;
+		var DARK = 0x1E1E20;
+		
+		var worker = new Worker("cardstate.js");
+		if(typeof Worker === undefined) {
+			console.log("Your browser does not support web workers.");
+		}
+		
+		worker.onmessage = function(event) {
+			var msgContent = event.data.content;
+			switch(event.data.type) {
+				case "newGame":
+					console.log("New game starting!");
+					break;
+				case "invalidMove":
+					showInvalidMoveMessage();
+				case "turnStart":
+					turnStart(msgContent.player, msg.topCard, msgContent.hand);
+					break;
+				
+				default:
+					console.log("cannot recognize message given to us from cardstate.js");
+			}
+		}
+		
+		// Start the game!
+		startNewGame();
+		
+		// Just call this, and it'll run the init function on the server
+		function startNewGame() {
+			worker.postMessage({
+				"type": "init",
+				"content": {
+					"numPlayers": 4,
+					"startingPlayer": 0
+				}
+			});
+		}
+		
+		function showInvalidMoveMessage() {
+			console.log("That move doesn't work! The color OR the number needs to match the card on top of the stack.");
+		}
+		
+		function turnStart(player, topCard, hand) {
+			
+		}
+		
+		// Tell the worker that this player is playing this card
+		// The card isn't an actual card object, it's the integer index of the card to play from the array the worker gave us.
+		function playCard(player, card) {
+			worker.postMessage({
+				"type": "playCard",
+				"content": {
+					"player": player,
+					"card": card
+				}
+			});
+		}
+		
+		
+	</script>
+</body>
+
+</html>

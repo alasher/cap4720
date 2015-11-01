@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Pac-Man Ripoff</title>
+        <link href="css/style.css" rel="stylesheet">
+        <script type="text/javascript">
+        var hit = new Audio("audio/knockout.mp3");
+        </script>
+        
+        <script src="js/config.js"></script>
+        <script data-main="../main" src="js/require.js"></script>
+    </head>
+    <body>
+        <div id="container">
+            <div id="description">
+                <h2>Austin Lasher</h2>
+                <p>WASD to move. Featuring randomly-generated maps!</p>
+                <p>I spent an awfully long time implementing this in full AMD modules with Require.js, look at the source code to see what I mean.</p>
+            </div>
+            <div id="glcontainer">Generating world...</div>
+            <div id="hudcontainer"><div id="hudload">Generating HUD</div></div>
+        </div>
+    </body>
+</html>

@@ -1,17 +1,8 @@
 <!-- 
 Austin Lasher
 CAP4720 - Computer Graphics
-Quiz 1 - Pong
 
-
-A couple new features:
-a) Paddle angles galore. Traditional Pong-style angles for the user, and simple wall-bounce for the computer.
-b) An AI that's actually beatable! (unlike before)
-c) A pause feature! (Just press S)
-d) Random starting angles, all configurable
-e) The losing player gets the ball first, instead of always the human player.
-f) A nice, clean new size layout, and some cool colors!
-
+Quiz 2: Angry Birds
 
 -->
 
@@ -47,12 +38,11 @@ f) A nice, clean new size layout, and some cool colors!
 		width: 250px;
 		position: absolute;
 		top: 25;
-		right: 25;
+		left: 25;
 		border: 1px solid #222;
 		background-color: #111;
 		padding: 8px;
 		color: #d8d8d8;
-		text-align: right;
 		font-size: 12px;
 		line-height: 1.3em;
 	}
@@ -64,14 +54,19 @@ f) A nice, clean new size layout, and some cool colors!
 <body>
 
 <div id="panel">
-~~ Controls ~~<br/>
+<center>~~ Controls ~~</center><br/>
 WASD: Move Cannon<br/>
 Space: Launch Cannonball<br />
 E: Increase velocity<br>
 Q: Decrease velocity<br>
 Current Velocity: <span id="veloc"></span><br>
-Game by <a href="http://github.com/alasher">Austin Lasher</a><Br><br>
-Board will <i>automatically</i> reset when all the targets are down!
+Game by <a href="http://github.com/alasher">Austin Lasher</a><br><br>
+Things added since last version:<br>
+<ul>
+<li>A super cube pyramid!</li>
+<li>Camera following on the ball</li>
+<li>Ball/position reset when ball goes over platform</li>
+</ul>
 </div>
 
 <script>
@@ -125,7 +120,7 @@ Board will <i>automatically</i> reset when all the targets are down!
 		camera.position.x = 0;
 		camera.position.y = 30;
 		camera.position.z = 170;
-		camera.rotation.x = 0.03;
+		//camera.rotation.x = 0.03;
 		//camera.lookAt( scene.position );
 		
 		// Initialize our rendererererer
@@ -252,12 +247,12 @@ Board will <i>automatically</i> reset when all the targets are down!
 		var width = 40;
 		// first is on 10, last is on 90
 		// increment starting value by 4
-		for(var k = 0; k <= 40; k+=5) {
+		for(var k = 20; k <= 40; k+=5) {
 			
 			for(var i = -40 + k; i <= width-k; i+=10) {
 			// 10, 18, 27, ...
-				for(var j = -20+k; j <= width+20-k; j+= 10) {
-					makeTarget("box", 8, j, (k/5)*8, i);
+				for(var j = -20 + k; j <= width+20-k; j+= 10) {
+					makeTarget("box", 8, j, (k/5)*8-30, i);
 				}
 			}
 		}
@@ -317,6 +312,11 @@ Board will <i>automatically</i> reset when all the targets are down!
 	}
 	
 	function makeCannonball() {
+		
+		if(ball != undefined) {
+			scene.remove(ball);
+		}
+		
 		var texture = THREE.ImageUtils.loadTexture('img/balltexture.jpg');
 		var ballGeometry = new THREE.SphereGeometry( 3 );
 		var ballMaterial = Physijs.createMaterial( new THREE.MeshLambertMaterial({map:texture}), .95, .95 );
@@ -450,10 +450,27 @@ Board will <i>automatically</i> reset when all the targets are down!
 		}
 	}
 	
+	// Monitor the balls position, and remove it if it goes out of bounds
+	// Position the camera to either follow the ball, or back to the floor.
+	function cameraAndBall() {
+		
+		if(ball != undefined && ball.position.y <= -25) {
+			scene.remove(ball);
+			ball = undefined;
+		}
+		
+		if(ball != undefined) camera.lookAt( ball.position );
+		else {
+			camera.lookAt( scene.position );
+			camera.rotation.x = 0.03;
+		}
+	}
+	
 	function render()
 	{
 		keyboardpresses();
 		checkTargets();
+		cameraAndBall();
 		
 		requestAnimationFrame( render );
 		renderer.render( scene, camera );

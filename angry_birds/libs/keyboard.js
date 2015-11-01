@@ -29,7 +29,10 @@ var Key = {
   
   onKeyup: function(event) {
     delete this._pressed[event.keyCode];
-  }
+  },
+  
+  
+  
 };
 
 function getDif(thisstr) {
