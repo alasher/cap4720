@@ -12,7 +12,25 @@ Three.js Board Game
 	<title>Three.js - UNO!</title>
 	
 	<style type="text/css">
-		html, body {
+		html {
+			height: 100%;
+			overflow: hidden;
+		}
+		
+		body {
+			margin: 0;
+			padding: 0;
+			height: 100%;
+			overflow: auto;
+			
+			color: #fff;
+			font-family: "Helvetica Neue", "Arial", sans-serif;
+		}
+		
+		canvas {
+			display: block;
+			width: 100%;
+			height: 100%;
 			padding: 0;
 			margin: 0;
 		}
@@ -25,7 +43,7 @@ Three.js Board Game
 			background-color: #1E1E20;
 			color: #FFFFFF;
 			font-size: 12px;
-			font-family: 
+			position: absolute;
 		}
 	</style>	
 	
@@ -97,19 +115,23 @@ Three.js Board Game
 		var gameInitialized = false;
 		
 		// Start the game!
-		if(texturesLoaded) startNewGame();
 		$("#buttons").hide();
+		if(texturesLoaded) clientInit();
+		
 		
 		////////////////////////////////////////////////
 		////////   GAME STATE FUNCTIONS   //////////////
 		////////////////////////////////////////////////
 		
+		function clientInit() {
+			gameInitialized = true;
+			graphicsInit();
+			startNewGame();
+		}
+		
 		// Just call this, and it'll run the init function on the server
 		// It will also start the first game, immediately after initialization
 		function startNewGame() {
-			
-			gameInitialized = true;
-			
 			cardstate.postMessage({
 				"type": "newGame",
 				"content": {
@@ -178,6 +200,94 @@ Three.js Board Game
 		}
 		
 		////////////////////////////////////////////////
+		///////////   RENDER FUNCTIONS   ///////////////
+		////////////////////////////////////////////////
+		
+		var scene, renderer, camera, light;
+		var cube;
+		
+		function graphicsInit() {
+			
+			// Scenes are important!
+			scene = new THREE.Scene();
+			
+			// Make that renderer!
+			renderer = new THREE.WebGLRenderer();
+			renderer.setClearColor( 0x000000, 1.0 );
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			
+			// Make/add that Camera
+			camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.1, 1000 );
+			camera.position.x = 0;
+			camera.position.y = 0;
+			camera.position.z = 275;
+			camera.lookAt( scene.position );
+			
+			// Make/add that Light
+			light = new THREE.SpotLight( 0xFFDBCE ); // 0xBC9884
+			
+			light.shadowCameraNear = 10;
+			light.shadowCameraFar = 500;
+			light.castShadow = true;
+			light.position.set( 100, 0, 200 );
+			light.lookAt(scene.position);
+			light.intensity = 1.0;
+			scene.add(light);
+			
+			ambientLight = new THREE.SpotLight( 0xFFFFFF );
+			ambientLight.intensity = 0.25;
+			ambientLight.position.set( 0, 0, 250 )
+			scene.add(ambientLight);
+			
+			makeBoard();
+			
+			// Add the canvas element to our container
+			document.getElementById("container").appendChild( renderer.domElement );
+			
+			// Intentionally start an infinite loop
+			render();
+		}
+		
+		function makeBoard() {
+			var woodtex = THREE.ImageUtils.loadTexture("images/wood2.jpg");
+			var woodmat = new THREE.MeshPhongMaterial({map:woodtex});
+			
+			var cubeg = new THREE.BoxGeometry(200, 200, 15);
+			var cubem = new THREE.MeshBasicMaterial({
+				wireframe: true
+			});
+			
+			cube = new THREE.Mesh(cubeg, woodmat);
+			scene.add(cube);
+			
+			// Add a test card or two :)
+			var realCardTex = THREE.ImageUtils.loadTexture("images/g7.jpg");
+			console.log("loading that picture now");
+			// new THREE.MeshLambertMaterial({map:cardTextures["r4"]})
+			var card2 = new THREE.Mesh(cardGeometry, new THREE.MeshLambertMaterial({map:cardTextures["r8"]}));
+			
+			// the stupid placeholder images don't work when requested via HTTP
+			// was a longshot anyway :(
+			// time for sleep
+			
+			card2.position.x = 0;
+			card2.position.z = 25;
+			card2.position.y = 0;
+			
+			scene.add(card2);
+		}
+		
+		// Main render loop
+		function render() {
+			
+			// Do key press stuff here
+			
+			requestAnimationFrame(render);
+			renderer.render( scene, camera );
+		}
+		
+		
+		////////////////////////////////////////////////
 		//////////   UTILITY FUNCTIONS   ///////////////
 		////////////////////////////////////////////////
 		
@@ -197,6 +307,17 @@ Three.js Board Game
 			} else {
 				console.log(msg, c.type, c.color);
 			}
+		}
+		
+		// Update camera/size on resize
+		window.addEventListener('resize', onWindowResize, false);
+		function onWindowResize(){
+			
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+			
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			
 		}
 		
 		

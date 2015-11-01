@@ -157,7 +157,7 @@ function initDeck() {
 	
 	
 	
-	// 40 cards, one for each color and number 1-10
+	// 36 cards, one for each color and number [1, 9]
 	for(var i = 1; i < 10; i++) {
 		for(var j = 0; j < 4; j++) {
 			deck.push({

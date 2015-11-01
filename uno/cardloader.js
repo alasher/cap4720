@@ -6,7 +6,8 @@ Three.js Board Game
 
 */
 
-var cardMaterials = [];
+var cardTextures = {};
+var cardMaterials = {};
 var colorPrefixes = ["r", "g", "b", "y"];
 var colorWords = ["red", "green", "blue", "yellow"];
 var colorHex = ["ff0000", "00ff00", "0000ff", "ffff00"];
@@ -26,8 +27,8 @@ itemLoadCount += 2; // Wild cards
 itemLoadCount++; // Card back
 
 // Create the geometry for a card here
-// Aspect ratio is 1:3
-var cardGeometry = new THREE.CubeGeometry(10, 30, 0.5);
+// Aspect ratio is 2:3
+var cardGeometry = new THREE.CubeGeometry(20, 30, 0.5);
 
 // PLACEHOLDER URL FORMAT: http://placehold.it/256x384/ff0000/f8f8f8/?text=R3
 
@@ -40,8 +41,8 @@ var loader = new THREE.TextureLoader();
 // Get normal cards
 for(var i = 1; i < 10; i++) {
 	for(var j = 0; j < 4; j++) {
-		var url = "images/"+colorPrefixes[j]+i+".jpg";
-		if(usePlaceholder) url = "http://placehold.it/"+csize+"/"+colorHex[j]+"/ffffff/?text="+colorWords[j]+i;
+		var url = "cards/"+colorPrefixes[j]+i+".jpg";
+		//if(usePlaceholder) url = "http://placehold.it/"+csize+"/"+colorHex[j]+"/ffffff.jpg/?text="+colorWords[j]+i;
 		
 		loadTexture(colorPrefixes[j]+i, url);
 	}
@@ -51,7 +52,7 @@ for(var i = 1; i < 10; i++) {
 for(var i = 0; i < 3; i++) {
 	for(var j = 0; j < 4; j++){
 		var url = "images/"+colorPrefixes[j]+specialType[i]+".jpg";
-		if(usePlaceholder) url = "http://placehold.it/"+csize+"/"+colorHex[j]+"/ffffff/?text="+colorWords+"%20"+specialType[i];
+		if(usePlaceholder) url = "http://placehold.it/"+csize+"/"+colorHex[j]+"/ffffff.jpg/?text="+colorWords[j]+"%20"+specialType[i];
 		
 		loadTexture(colorPrefixes[j]+specialType[i], url);
 	}
@@ -60,15 +61,31 @@ for(var i = 0; i < 3; i++) {
 // Wild cards
 for(var i = 0; i < 2; i++) {
 	var url = "images/"+wildType[i]+".jpg";
-	if(usePlaceholder) url = "http://placehold.it/"+csize+"/000000/ffffff/?text="+wildType[i];
+	if(usePlaceholder) url = "http://placehold.it/"+csize+"/000000/ffffff.jpg/?text="+wildType[i];
 	
 	loadTexture(wildType[i], url);
 }
 
 // Gotta get the back of the card, too. :)
 var cardBackURL = "images/back.jpg";
-if(usePlaceholder) cardBackURL = "http://placehold.it/256x384/000000/ff0000/?text=UNO";
+if(usePlaceholder) cardBackURL = "http://placehold.it/256x384/000000/ff0000.jpg/?text=UNO";
 loadTexture("back", cardBackURL);
+
+// Other textures here
+/*var woodMaterial;
+var woodURL = 'images/wood.jpg';
+loader.load(
+	woodURL,
+	function(texture) {
+		window.woodMaterial = new THREE.MeshBasicMaterial({
+			map: texture
+		});
+	},
+	null,
+	function(err) {
+		console.warn("could not load wood background texture");
+	}
+);*/
 
 // Use Three.js's fancy new load texture function to get textures asynchronously
 function loadTexture(id, url) {
@@ -77,15 +94,17 @@ function loadTexture(id, url) {
 		function(texture) {
 			if(DEBUG) console.log("successful texture load, "+(itemLoadCount-1)+" items left.");
 			itemLoadCount--;
-			window.cardMaterials.push(new THREE.MeshBasicMaterial({
+			
+			window.cardTextures[id] = texture;
+			window.cardMaterials[id] = new THREE.MeshBasicMaterial({
 				map: texture
-			}));
+			});
 			
 			if(itemLoadCount == 0) window.finishedLoading();
 		},
 		null,
 		function(err) {
-			console.warning("error loading texture for image", id);
+			console.warn("error loading texture for image", id);
 		}
 	);
 }
@@ -93,5 +112,5 @@ function loadTexture(id, url) {
 function finishedLoading() {
 	console.log("Loaded all of our textures!");
 	window.texturesLoaded = true;
-	if(!gameInitialized) startNewGame();
+	if(!gameInitialized) clientInit();
 }
