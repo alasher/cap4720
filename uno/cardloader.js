@@ -25,10 +25,12 @@ itemLoadCount += 9*4; // Normal cards
 itemLoadCount += 3*4; // Special cards
 itemLoadCount += 2; // Wild cards
 itemLoadCount++; // Card back
+var cardWidth = 20;
+var cardHeight = 30;
 
 // Create the geometry for a card here
 // Aspect ratio is 2:3
-var cardGeometry = new THREE.CubeGeometry(20, 30, 0.5);
+var cardGeometry = new THREE.CubeGeometry(cardWidth, cardHeight, 0.1);
 
 // PLACEHOLDER URL FORMAT: http://placehold.it/256x384/ff0000/f8f8f8/?text=R3
 
@@ -67,8 +69,8 @@ for(var i = 0; i < 2; i++) {
 }
 
 // Gotta get the back of the card, too. :)
-var cardBackURL = "images/back.jpg";
-if(usePlaceholder) cardBackURL = "http://placehold.it/256x384/000000/ff0000.jpg/?text=UNO";
+var cardBackURL = "cards/back.jpg";
+//if(usePlaceholder) cardBackURL = "http://placehold.it/256x384/000000/ff0000.jpg/?text=UNO";
 loadTexture("back", cardBackURL);
 
 // Other textures here
@@ -89,6 +91,7 @@ loader.load(
 
 // Use Three.js's fancy new load texture function to get textures asynchronously
 function loadTexture(id, url) {
+	if(url)
 	loader.load(
 		url,
 		function(texture) {
