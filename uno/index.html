@@ -27,11 +27,23 @@ Three.js Board Game
 			font-size: 12px;
 			font-family: 
 		}
-	</style>
+	</style>	
 	
 </head>
 
+<script type="text/javascript" src="libs/jquery-2.1.4.min.js"></script>
+<script type="text/javascript" src="libs/three.min.js"></script>
+<script type="text/javascript" src="cardloader.js"></script>
+
 <body>
+
+	<div id="buttons">
+		<a href="#" onclick="submitWild('r')">red</a><br>
+		<a href="#" onclick="submitWild('g')">green</a><br>
+		<a href="#" onclick="submitWild('b')">blue</a><br>
+		<a href="#" onclick="submitWild('y')">yellow</a>
+	</div>
+	
 	<div id="container">
 	
 	</div>
@@ -41,16 +53,16 @@ Three.js Board Game
 		// color scheme, "Sea Wolf" from color.adobe.com
 		var RED = 0xDC3522;
 		var CREAM = 0xD9CB9E;
-		var NAVY = 0x374140;
+		var NAVY = 0x374140; 
 		var GRAY = 0x2A2C2B;
 		var DARK = 0x1E1E20;
 		
-		var worker = new Worker("cardstate.js");
 		if(typeof Worker === undefined) {
 			console.log("Your browser does not support web workers.");
 		}
 		
-		worker.onmessage = function(event) {
+		var cardstate = new Worker("cardstate.js");
+		cardstate.onmessage = function(event) {
 			var msgContent = event.data.content;
 			switch(event.data.type) {
 				case "newGame":
@@ -59,21 +71,47 @@ Three.js Board Game
 				case "invalidMove":
 					showInvalidMoveMessage();
 				case "turnStart":
-					turnStart(msgContent.player, msg.topCard, msgContent.hand);
+					turnStart(msgContent.player, msgContent.topCard, msgContent.hand);
 					break;
-				
+				case "colorQuery":
+					askForColor(msgContent.player, msgContent.card);
+					break;
 				default:
-					console.log("cannot recognize message given to us from cardstate.js");
+					console.log("did not recognize message from cardstate.js");
 			}
 		}
 		
+		// This would be pretty cool, but the "necessity/implementation time" ratio seems a little low to me :)
+		/*var cardloader = new Worker("cardloader.js");
+		var cardMaterials = [];
+		cardloader.onmessage = function(event) {
+			var msgContent = event.data.content;
+			switch(event.data.type) {
+				case "complete":
+					break;
+				default:
+					console.log("did not recognize message from cardloader.js");
+			}
+		}*/
+		
+		var gameInitialized = false;
+		
 		// Start the game!
-		startNewGame();
+		if(texturesLoaded) startNewGame();
+		$("#buttons").hide();
+		
+		////////////////////////////////////////////////
+		////////   GAME STATE FUNCTIONS   //////////////
+		////////////////////////////////////////////////
 		
 		// Just call this, and it'll run the init function on the server
+		// It will also start the first game, immediately after initialization
 		function startNewGame() {
-			worker.postMessage({
-				"type": "init",
+			
+			gameInitialized = true;
+			
+			cardstate.postMessage({
+				"type": "newGame",
 				"content": {
 					"numPlayers": 4,
 					"startingPlayer": 0
@@ -81,24 +119,84 @@ Three.js Board Game
 			});
 		}
 		
+		// Called automatically when a player submits a move that is invalid
 		function showInvalidMoveMessage() {
 			console.log("That move doesn't work! The color OR the number needs to match the card on top of the stack.");
 		}
 		
+		// When a player's turn starts, this function is called
 		function turnStart(player, topCard, hand) {
-			
+			// Rotate the camera to this side of the board :)
+			printCard(topCard, "Top card is: ");
+			console.log("It's player "+player+"'s turn!");
+			printHand(hand);
 		}
 		
 		// Tell the worker that this player is playing this card
 		// The card isn't an actual card object, it's the integer index of the card to play from the array the worker gave us.
 		function playCard(player, card) {
-			worker.postMessage({
+			cardstate.postMessage({
 				"type": "playCard",
 				"content": {
 					"player": player,
 					"card": card
 				}
 			});
+		}
+		
+		// Tell the web worker some given player wishes to draw a card
+		function drawCard(player) {
+			cardstate.postMessage({
+				"type": "drawCard",
+				"content": {
+					"player": player
+				}
+			});
+		}
+		
+		var wildplayer, wildcard;
+		
+		function askForColor(player, card) {
+			// show a dialog that asks for the color of the wild card here
+			$("#buttons").show();
+			
+			wildcard = card;
+			wildplayer = player;
+		}
+		
+		// After the box shows, allow each button to "submit" 
+		function submitWild(color) {
+			wildcard.color = color;
+			cardstate.postMessage({
+				"type": "colorSubmit",
+				"content": {
+					"player": wildplayer,
+					"card": wildcard
+				}
+			});
+			$("#buttons").hide();
+		}
+		
+		////////////////////////////////////////////////
+		//////////   UTILITY FUNCTIONS   ///////////////
+		////////////////////////////////////////////////
+		
+		// Print each card from a given hand
+		function printHand(hand) {
+			for(var i = 0; i < hand.length; i++) {
+				printCard(hand[i], "Card"+i);
+			}
+		}
+
+		// Print a single card's details
+		function printCard(c, msg) {
+			if(c.type == "normal") {
+				console.log(msg, c.type, c.color, c.number);
+			} else if(c.type == "wild" || c.type == "wild4") {
+				console.log(msg, c.type);
+			} else {
+				console.log(msg, c.type, c.color);
+			}
 		}
 		
 		

@@ -23,6 +23,14 @@ Three.js Board Game
 }
 */
 
+/* Note: This code could potentially be made into a full UNO server!
+   If I were to do that though,
+		- Messages right now are public, we need to make them private. Send messages only to who you need to, don't publicly publish everyone's hand.
+		- Set up a Node.js socket connection, and speak to players one by one.
+
+*/
+
+
 // This is a useful function for us to make real quick
 // Because we're using a stack for our card pile
 Array.prototype.peek = function() {
@@ -42,8 +50,13 @@ var deck = [];
 var stack = [];
 var cardsDealt = 7;
 var color;
+var gameInitialized = false;
 
 // Dealer deals every player SEVEN cards
+
+// These are our 'normal' colors, for use when scanning over
+// each possible card color
+var colors = ["r", "g", "b", "y"];
 
 // Decipher this message we just got
 self.onmessage = function(event) {
@@ -53,8 +66,9 @@ self.onmessage = function(event) {
 			console.log("cardstate.js :: received message \"" + msgContent.message + "\"");
 			break;
 		case "init":
-		case "initialize":
-			initializeGame(msgContent);
+		case "newGame":
+			if(!gameInitialized) initializeWorker(msgContent);
+			newGame();
 			break;
 		case "getDeck":
 			break;
@@ -72,13 +86,19 @@ self.onmessage = function(event) {
 		case "playCard":
 			playCard(msgContent.player, msgContent.card);
 			break;
+		case "drawCard":
+			drawCard(msgContent.player);
+			break;
+		case "colorSubmit":
+			receivedWildColor(msgContent.player, msgContent.card);
+			break;
 		default:
 			console.log("cardstate.js :: cannot recognize message \""+event.data.type+"\"");
 	}
 }
 
 // Copy the settings, make a deck, deal some cards, and start the game!
-function initializeGame(settings) {
+function initializeWorker(settings) {
 	console.log("cardstate.js :: initializing game with these settings: ", settings );
 	
 	// first, copy the settings over from what they specified.
@@ -91,8 +111,18 @@ function initializeGame(settings) {
 	
 	// make the deck of cards
 	initDeck();
+	
+	// Set a flag so we don't run this code again
+	gameInitialized = true;
+}
+
+// If we're starting a new game, we need to start from here.
+function newGame() {
 	shuffle();
 	deal();
+	
+	// Flip the top card of the deck over to start the stack
+	stack.push(deck.pop());
 	
 	self.postMessage({
 		"type": "newGame",
@@ -125,7 +155,7 @@ function copySettings(settings) {
 function initDeck() {
 	deck = [];
 	
-	var colors = ["r", "g", "b", "y"];
+	
 	
 	// 40 cards, one for each color and number 1-10
 	for(var i = 1; i < 10; i++) {
@@ -255,7 +285,7 @@ function isValidPlay(card) {
 		return true;
 	
 	// Otherwise, either the color OR the number has to match
-	if(card.color == topCard.color || card.number == topCard.number) 
+	if(card.color == topCard.color || (card.type == "normal" && card.number == topCard.number))
 		return true;
 	else return false;
 }
@@ -299,41 +329,65 @@ function publishDirection(){
 	self.postMessage({
 		"type": "direction",
 		"content": {
-			"direction": (direction == 1) ? "cw" : "cc";
+			"direction": (direction == 1) ? "cw" : "cc"
 		}
 	});
+}
+
+function askForColor(card) {
+	self.postMessage({
+		"type": "colorQuery",
+		"content": {
+			"player": currentPlayer,
+			"card": card
+		}
+	})
+}
+
+function win(player) {
+	self.postMessage({
+		"type": "win",
+		"content": {
+			"player": player
+		}
+	})
 }
 
 ////////////////////////////////////////////////
 ////////////   TURN RESPONSES   ////////////////
 ////////////////////////////////////////////////
 
+// OPTION 1 - PLAY A CARD
 function playCard(playerID, cardID) {
 	
 	// Turn them away if they put a card that doesn't work
-	if(!isValidPlay) {
+	if(!isValidPlay(hands[playerID][cardID])) {
 		rejectCard(playerID, cardID);
 		return;
 	}
 	
-	var card = hand[playerID][cardID];
+	var card = hands[playerID][cardID];
 	
-	// 1. Remove this card from the player's hand
-	hand[playerID] = deleteNthElement(hand[playerID], cardID);
+	// Remove this card from the player's hand
+	hands[playerID] = deleteNthElement(hands[playerID], cardID);
+	
+	if(card.type == "wild4" || card.type == "wild") {
+		askForColor(card);
+		return;
+	}
 	
 	// 2. Set the top card of the stack to this card
 	stack.push(card);
 	
-	// 3. Handle any special actions based on the card
-	if(card.type == "wild4") {
-		for(var i = 0; i < 4; i++) givePlayerCard(currentPlayer+1);
-		// **Let currentPlayer+1 know their new hand (and that they just got rekt)
-		// **Let everyone know the new color
-		advancePlayers(2);
-	} else if (card.type == "wild") {
-		// All we have to do here is let everyone know the new color
-		advancePlayers(1);
-	} else if (card.type == "skip") {
+	// Check to see if this player just won
+	if(hands[playerID].length == 0) {
+		win(playerID);
+		return;
+	}
+	
+	// Now... the fun part :)
+	// Handle any special actions based on the card
+	if (card.type == "skip") {
 		// Let everyone know currentPlayer+1 got skipped like a nerd
 		advancePlayers(2);
 	} else if(card.type == "reverse") {
@@ -352,6 +406,37 @@ function playCard(playerID, cardID) {
 	nextTurn();
 }
 
+// Wild card colors are requested by a separate web worker call
+// In this function, we handle the user's color response
+function receivedWildColor(playerID, card) {
+	
+	// Place it on the stack
+	stack.push(card);
+	
+	// Check to see if this player just won
+	if(hands[playerID].length == 0) {
+		win(playerID);
+		return;
+	}
+	
+	// TODO: Let everyone know the new color
+	
+	if(card.type == "wild4") {
+		for(var i = 0; i < 4; i++) givePlayerCard(currentPlayer+1);
+		// **Let currentPlayer+1 know their new hand (and that they just got rekt)
+		advancePlayers(2);
+	} else if (card.type == "wild") {
+		advancePlayers(1);
+	} else {
+		// This block shouldn't happen, but just in case it's an invalid card
+		advancePlayers(1);
+	}
+	
+	// Move on, move on.
+	nextTurn();
+	
+}
+
 function changeDirection() {
 	direction *= -1;
 }
@@ -365,4 +450,18 @@ function advancePlayers(n) {
 	currentPlayer = (currentPlayer+(direction*n)+numPlayers)%numPlayers;
 }
 
-function 
+
+// OPTION 2 - DRAW A CARD
+// Note: In normal UNO, you MUST play the card you drew if it is a valid card.
+// Right now, I haven't added that just yet. Duly noted!
+function drawCard(playerID) {
+	
+	// Give this guy a new card
+	givePlayerCard(playerID);
+	
+	// Go to the next player, and start the next turn!
+	advancePlayers(1);
+	nextTurn();
+}
+
+
