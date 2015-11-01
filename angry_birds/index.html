@@ -1,8 +1,22 @@
 <!-- 
 Austin Lasher
 CAP4720 - Computer Graphics
+<<<<<<< HEAD
 
 Quiz 2: Angry Birds
+=======
+Quiz 1 - Pong
+
+
+A couple new features:
+a) Paddle angles galore. Traditional Pong-style angles for the user, and simple wall-bounce for the computer.
+b) An AI that's actually beatable! (unlike before)
+c) A pause feature! (Just press S)
+d) Random starting angles, all configurable
+e) The losing player gets the ball first, instead of always the human player.
+f) A nice, clean new size layout, and some cool colors!
+
+>>>>>>> 84cb6858bf2f001b2b59612d1e9b9cf74bc78066
 
 -->
 
@@ -38,11 +52,19 @@ Quiz 2: Angry Birds
 		width: 250px;
 		position: absolute;
 		top: 25;
+<<<<<<< HEAD
 		left: 25;
+=======
+		right: 25;
+>>>>>>> 84cb6858bf2f001b2b59612d1e9b9cf74bc78066
 		border: 1px solid #222;
 		background-color: #111;
 		padding: 8px;
 		color: #d8d8d8;
+<<<<<<< HEAD
+=======
+		text-align: right;
+>>>>>>> 84cb6858bf2f001b2b59612d1e9b9cf74bc78066
 		font-size: 12px;
 		line-height: 1.3em;
 	}
@@ -54,12 +76,17 @@ Quiz 2: Angry Birds
 <body>
 
 <div id="panel">
+<<<<<<< HEAD
 <center>~~ Controls ~~</center><br/>
+=======
+~~ Controls ~~<br/>
+>>>>>>> 84cb6858bf2f001b2b59612d1e9b9cf74bc78066
 WASD: Move Cannon<br/>
 Space: Launch Cannonball<br />
 E: Increase velocity<br>
 Q: Decrease velocity<br>
 Current Velocity: <span id="veloc"></span><br>
+<<<<<<< HEAD
 Game by <a href="http://github.com/alasher">Austin Lasher</a><br><br>
 Things added since last version:<br>
 <ul>
@@ -67,6 +94,10 @@ Things added since last version:<br>
 <li>Camera following on the ball</li>
 <li>Ball/position reset when ball goes over platform</li>
 </ul>
+=======
+Game by <a href="http://github.com/alasher">Austin Lasher</a><Br><br>
+Board will <i>automatically</i> reset when all the targets are down!
+>>>>>>> 84cb6858bf2f001b2b59612d1e9b9cf74bc78066
 </div>
 
 <script>
@@ -120,7 +151,11 @@ Things added since last version:<br>
 		camera.position.x = 0;
 		camera.position.y = 30;
 		camera.position.z = 170;
+<<<<<<< HEAD
 		//camera.rotation.x = 0.03;
+=======
+		camera.rotation.x = 0.03;
+>>>>>>> 84cb6858bf2f001b2b59612d1e9b9cf74bc78066
 		//camera.lookAt( scene.position );
 		
 		// Initialize our rendererererer
@@ -247,12 +282,21 @@ Things added since last version:<br>
 		var width = 40;
 		// first is on 10, last is on 90
 		// increment starting value by 4
+<<<<<<< HEAD
 		for(var k = 20; k <= 40; k+=5) {
 			
 			for(var i = -40 + k; i <= width-k; i+=10) {
 			// 10, 18, 27, ...
 				for(var j = -20 + k; j <= width+20-k; j+= 10) {
 					makeTarget("box", 8, j, (k/5)*8-30, i);
+=======
+		for(var k = 0; k <= 40; k+=5) {
+			
+			for(var i = -40 + k; i <= width-k; i+=10) {
+			// 10, 18, 27, ...
+				for(var j = -20+k; j <= width+20-k; j+= 10) {
+					makeTarget("box", 8, j, (k/5)*8, i);
+>>>>>>> 84cb6858bf2f001b2b59612d1e9b9cf74bc78066
 				}
 			}
 		}
@@ -312,11 +356,14 @@ Things added since last version:<br>
 	}
 	
 	function makeCannonball() {
+<<<<<<< HEAD
 		
 		if(ball != undefined) {
 			scene.remove(ball);
 		}
 		
+=======
+>>>>>>> 84cb6858bf2f001b2b59612d1e9b9cf74bc78066
 		var texture = THREE.ImageUtils.loadTexture('img/balltexture.jpg');
 		var ballGeometry = new THREE.SphereGeometry( 3 );
 		var ballMaterial = Physijs.createMaterial( new THREE.MeshLambertMaterial({map:texture}), .95, .95 );
@@ -450,6 +497,7 @@ Things added since last version:<br>
 		}
 	}
 	
+<<<<<<< HEAD
 	// Monitor the balls position, and remove it if it goes out of bounds
 	// Position the camera to either follow the ball, or back to the floor.
 	function cameraAndBall() {
@@ -466,11 +514,16 @@ Things added since last version:<br>
 		}
 	}
 	
+=======
+>>>>>>> 84cb6858bf2f001b2b59612d1e9b9cf74bc78066
 	function render()
 	{
 		keyboardpresses();
 		checkTargets();
+<<<<<<< HEAD
 		cameraAndBall();
+=======
+>>>>>>> 84cb6858bf2f001b2b59612d1e9b9cf74bc78066
 		
 		requestAnimationFrame( render );
 		renderer.render( scene, camera );
