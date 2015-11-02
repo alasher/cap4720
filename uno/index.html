@@ -89,6 +89,18 @@ Three.js Board Game
 			z-index: 100;
 		}
 		
+		#cardsleft {
+			text-align: center;
+			width: 500px;
+			height: 50px;
+			position: absolute;
+			left: 50%;
+			margin-left: -250px;
+			top: 60px;
+			z-index: 100;
+			font-size: 16px;
+		}
+		
 		h1, h2 {
 			margin: 4px;
 		}
@@ -136,6 +148,11 @@ Three.js Board Game
 		</ul>
 	</div>
 	
+	<div id="cardsleft">
+	Cards In Hand<br>
+	Player 1: <span id="p1count">7</span>&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;&nbsp;Player 2: <span id="p2count">7</span>&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;&nbsp;Player 3: <span id="p3count">7</span>
+	</div>
+	
 	<!-- WebGL Canvas Container -->
 	<div id="container"></div>
 	
@@ -145,6 +162,8 @@ Three.js Board Game
 		<button type="button" onclick="submitWild('b')" class="btn btn-primary btn-lg">Blue</button>
 		<button type="button" onclick="submitWild('y')" class="btn btn-warning btn-lg">Yellow</button>
 	</div>
+	
+	<audio id="bgmusic" src="audio/the_wires.mp3" autoplay="autoplay" loop="loop"></audio> 
 	
 	<script type="text/javascript">
 		
@@ -184,6 +203,9 @@ Three.js Board Game
 				case "colorQuery":
 					askForColor(msgContent.player, msgContent.card);
 					break;
+				case "win":
+					handleplaybyplay(msgContent.player, "win");
+					break;
 				default:
 					console.log("did not recognize message from cardstate.js");
 			}
@@ -218,6 +240,9 @@ Three.js Board Game
 					break;
 				case "skipped":
 					//consoleMessage(playerName+" just got skipped!");
+					break;
+				case "win":
+					consoleMessage(playerName+" just won! Game over!");
 					break;
 				default:
 					console.log("Did not recognize this play by play message");
@@ -262,6 +287,7 @@ Three.js Board Game
 		
 		// Start the game!
 		$("#wildSelect").hide();
+		$("#cardsleft").hide();
 		if(texturesLoaded) clientInit();
 		
 		
@@ -455,7 +481,10 @@ Three.js Board Game
 			deckCard = new THREE.Mesh(cardGeometry, deckMat);
 			deckCard.position.x -= 1.15*cardWidth;
 			table.add(deckCard)
+			
+			makePointlessCards();
 		}
+		
 		
 		
 		var draggableCards = [];
@@ -511,6 +540,70 @@ Three.js Board Game
 			}
 			
 		}
+		
+		// Make a couple of cards that the "other players" have
+		// These are 100% cosmetic
+		function makePointlessCards() {
+			var backMat = new THREE.MeshLambertMaterial({map:cardTextures["back"]});
+			
+			var width, start, zval, x;
+			
+			width = gap*7 + cardWidth;
+			if(width > maxWidth) {
+				gap = maxWidth / hand.length;
+				width = gap*7 + cardWidth;
+			}
+			
+			start = -width/2;
+			zval = 0;
+			x = start + cardWidth/2;
+			for(var i = 0; i < 8; i++) {
+				
+				var someCard = new THREE.Mesh(cardGeometry, backMat);
+				someCard.rotation.z = -Math.PI/2.0;
+				someCard.position.y = x;
+				someCard.position.x = -(distFromCenter+10);
+				someCard.position.z = zval;
+				someCard.CARD_INDEX = i;
+				table.add(someCard);
+				x += gap;
+				zval += 0.2;
+			}
+			
+			start = -width/2;
+			zval = 0;
+			x = start + cardWidth/2;
+			for(var i = 0; i < 8; i++) {
+				
+				var someCard = new THREE.Mesh(cardGeometry, backMat);
+				someCard.rotation.z = Math.PI;
+				someCard.position.x = x;
+				someCard.position.y = (distFromCenter+10);
+				someCard.position.z = zval;
+				someCard.CARD_INDEX = i;
+				table.add(someCard);
+				x += gap;
+				zval += 0.2;
+			}
+			
+			start = -width/2;
+			zval = 0;
+			x = start + cardWidth/2;
+			for(var i = 0; i < 8; i++) {
+				
+				var someCard = new THREE.Mesh(cardGeometry, backMat);
+				someCard.rotation.z = Math.PI/2.0;
+				someCard.position.y = x;
+				someCard.position.x = (distFromCenter+10);
+				someCard.position.z = zval;
+				someCard.CARD_INDEX = i;
+				table.add(someCard);
+				x += gap;
+				zval += 0.2;
+			}
+			
+		}
+		
 		
 		// Called each new turn, when we need to set the new "stack" card
 		// It's just one, non draggable mesh
@@ -671,7 +764,7 @@ Three.js Board Game
 			} else if(c.type == "wild" || c.type == "wild4") {
 				msg += c.type + " ("+cword+")";
 			} else {
-				msg += cword + c.type;
+				msg += cword + " "+c.type;
 			}
 			
 			return msg;
@@ -699,6 +792,8 @@ Three.js Board Game
 			
 			renderer.setSize( window.innerWidth, window.innerHeight );
 		}
+		
+		document.getElementById("bgmusic").volume = 0.35;
 		
 	</script>
 </body>

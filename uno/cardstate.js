@@ -240,6 +240,11 @@ function shuffle() {
 	
 	// Make a deep copy of the deck
 	var newDeck = [];
+
+	var topStackCard;
+	if(stack.length != 0) {
+		topStackCard = stack.pop();
+	}
 	
 	// Merge the play stack into the deck array
 	for(var i = stack.length-1; i >= 0; i--)
@@ -262,6 +267,10 @@ function shuffle() {
 	
 	// Set deck equal to this shuffled version
 	deck = newDeck;
+	
+	// If we saved the top card of the stack, put that on
+	if(typeof topStackCard !== "undefined") 
+		stack = topStackCard
 }
 
 // Deal one card to each player, and repeat 'cardsDealt' times.
@@ -283,6 +292,8 @@ function givePlayerCard(player) {
 	if(deck.length == 0) {
 		console.log("cardstate.js :: Shuffling stack into empty deck.");
 		shuffle();
+		
+		
 		return;
 	}
 	
@@ -298,7 +309,7 @@ function isValidPlay(card) {
 		return true;
 	
 	// Otherwise, either the color OR the number has to match
-	if(card.color == topCard.color || (card.type == "normal" && card.number == topCard.number))
+	if(card.color == topCard.color || (card.type == "normal" && card.number == topCard.number) || (card.type != "normal" && card.type == topCard.type))
 		return true;
 	else return false;
 }
