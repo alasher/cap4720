@@ -77,6 +77,9 @@ self.onmessage = function(event) {
 		case "getDirection":
 			publishDirection();
 			break;
+		case "makeBotMove":
+			makeBotMove(msgContent.player);
+			break;
 		case "printDeck":
 			printDeck();
 			break;
@@ -122,14 +125,24 @@ function newGame() {
 	deal();
 	
 	// Flip the top card of the deck over to start the stack
-	stack.push(deck.pop());
+	var newTopCard = deck.pop();
+	
+	// If the top card happens to be wild, pick a random color for it.
+	if(newTopCard.type == "wild" || newTopCard.type == "wild4") {
+		var id = Math.floor(Math.random()*colors.length);
+		newTopCard.color = colors[id];
+		playbyplay(currentPlayer, "colorChange", newTopCard);
+	}
+	
+	color = newTopCard.color;
+	stack.push(newTopCard);
 	
 	self.postMessage({
 		"type": "newGame",
 		"content": {}
 	});
 	
-	nextTurn();
+	nextTurn(0);
 }
 
 // Handles the initialization of settings, and specifying defaults.
@@ -290,9 +303,11 @@ function isValidPlay(card) {
 	else return false;
 }
 
+// deletes an item from an array
 function deleteNthElement(arr, n) {
 	return arr.slice(0,n).concat(arr.slice(n+1));
 }
+
 
 ////////////////////////////////////////////////
 //////////   EVENT BROADCASTING   //////////////
@@ -300,7 +315,7 @@ function deleteNthElement(arr, n) {
 
 // Publish a "turnStart" message for the currentplayer
 // This method assumes the currentPlayer value has already been adjusted to account for the new player
-function nextTurn() {
+function publishNextTurn() {
 	self.postMessage({
 		"type": "turnStart",
 		"content": {
@@ -341,7 +356,7 @@ function askForColor(card) {
 			"player": currentPlayer,
 			"card": card
 		}
-	})
+	});
 }
 
 function win(player) {
@@ -350,7 +365,47 @@ function win(player) {
 		"content": {
 			"player": player
 		}
-	})
+	});
+}
+
+function updatePlayerCards(player) {
+	self.postMessage({
+		"type": "updateCards",
+		"content": {
+			"player": player,
+			"hand": hands[player]
+		}
+	});
+}
+
+function playbyplay(player, action, card) {
+	if(action == "skipped") console.log("posting skipped play by play");
+	self.postMessage({
+		"type": "playbyplay",
+		"content": {
+			"player": player,
+			"action": action,
+			"card": (typeof card !== "undefined") ? card : "none"
+		}
+	});
+	if(action == "skipped") console.log("just posted skipped play by play");
+}
+
+// Get the possible valid moves from a hand (specifically for AI)
+function makeBotMove(playerID) {
+	var validmoves = [];
+	for(var i = 0; i < hands[playerID].length; i++) {
+		if(isValidPlay(hands[playerID][i])) validmoves.push(i);
+	}
+	
+	// 20%+ chance to just draw a card, even if there are valid moves
+	if(validmoves.length == 0 || Math.random() <= 0.20) {
+		drawCard(playerID);
+	} else {
+		var move = validmoves[Math.floor(Math.random()*validmoves.length)];
+		playCard(playerID, move);
+	}
+	
 }
 
 ////////////////////////////////////////////////
@@ -385,25 +440,26 @@ function playCard(playerID, cardID) {
 		return;
 	}
 	
+	// Hops is how many players we jump over this turn
+	var hops = 1;
+	
 	// Now... the fun part :)
-	// Handle any special actions based on the card
 	if (card.type == "skip") {
-		// Let everyone know currentPlayer+1 got skipped like a nerd
-		advancePlayers(2);
+		hops = 2;
+		playbyplay(getNextID(), "skipped");
 	} else if(card.type == "reverse") {
 		// Let everyone know we're changing directions
 		changeDirection();
-		advancePlayers(1);
 	} else if(card.type == "draw2") {
-		for(var i = 0; i < 2; i++) givePlayerCard(currentPlayer+1);
-		// Let currentPlayer+1 know their new hand
-		advancePlayers(2);
-	} else {
-		advancePlayers(1);
+		for(var i = 0; i < 2; i++) givePlayerCard(getNextID());
+		updatePlayerCards(getNextID());
+		playbyplay(getNextID(), "skipped");
+		hops = 2;
 	}
 	
 	// That's it! Start up the next turn.
-	nextTurn();
+	playbyplay(playerID, "playCard", card);
+	nextTurn(hops);
 }
 
 // Wild card colors are requested by a separate web worker call
@@ -419,22 +475,24 @@ function receivedWildColor(playerID, card) {
 		return;
 	}
 	
-	// TODO: Let everyone know the new color
+	var nextPlayerDist = 1;
 	
 	if(card.type == "wild4") {
-		for(var i = 0; i < 4; i++) givePlayerCard(currentPlayer+1);
-		// **Let currentPlayer+1 know their new hand (and that they just got rekt)
-		advancePlayers(2);
-	} else if (card.type == "wild") {
-		advancePlayers(1);
-	} else {
-		// This block shouldn't happen, but just in case it's an invalid card
-		advancePlayers(1);
+		for(var i = 0; i < 4; i++) givePlayerCard(getNextID());
+		updatePlayerCards(getNextID());
+		playbyplay(getNextID(), "skipped");
+		//setTimeout(playbyplay, 100, getNextID(), "skipped");
+		nextPlayerDist = 2;
 	}
 	
 	// Move on, move on.
-	nextTurn();
-	
+	playbyplay(playerID, "playCard", card);
+	nextTurn(nextPlayerDist);
+}
+
+// This can change depending on the direction
+function getNextID() {
+	return (currentPlayer+direction+numPlayers)%numPlayers;
 }
 
 function changeDirection() {
@@ -450,6 +508,22 @@ function advancePlayers(n) {
 	currentPlayer = (currentPlayer+(direction*n)+numPlayers)%numPlayers;
 }
 
+function nextTurn(hops) {
+	
+	// Before we go to the next turn, update the player with their current cards
+	console.log("cardstate.js :: Calling nextturn with hops = ", hops);
+	updatePlayerCards(currentPlayer);
+	// And update everyone else with the status of their play
+	
+	// Check and see if the color is new.
+	if(stack.peek().color != color) {
+		playbyplay(currentPlayer, "colorChange", stack.peek());
+		color = stack.peek().color;
+	}
+	
+	advancePlayers(hops);
+	publishNextTurn();
+}
 
 // OPTION 2 - DRAW A CARD
 // Note: In normal UNO, you MUST play the card you drew if it is a valid card.
@@ -458,10 +532,11 @@ function drawCard(playerID) {
 	
 	// Give this guy a new card
 	givePlayerCard(playerID);
+	playbyplay(playerID, "drawCard", undefined);
+	
 	
 	// Go to the next player, and start the next turn!
-	advancePlayers(1);
-	nextTurn();
+	nextTurn(1);
 }
 
 

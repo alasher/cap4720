@@ -6,10 +6,17 @@ Three.js Board Game
 
 -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-	<title>Three.js - UNO!</title>
+
+	<meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <title>Three.js - UNO!</title>
+	
+	<link href="css/bootstrap.min.css" rel="stylesheet">
 	
 	<style type="text/css">
 		html {
@@ -23,7 +30,8 @@ Three.js Board Game
 			height: 100%;
 			overflow: auto;
 			
-			color: #fff;
+			color: #FFFFFF;
+			font-size: 12px;
 			font-family: "Helvetica Neue", "Arial", sans-serif;
 		}
 		
@@ -41,11 +49,70 @@ Three.js Board Game
 			padding: 0;
 			margin: 0;
 			background-color: #1E1E20;
-			color: #FFFFFF;
-			font-size: 12px;
 			position: absolute;
+			z-index: 1;
 		}
-	</style>	
+		
+		#messages {
+			position: absolute;
+			width: 450px;
+			height: 175px;
+			margin: 15px;
+			padding: 5px 15px;
+			top:0;
+			right:0;
+			z-index: 100;
+			font-size: 14px;
+			color: #dddddd;
+		}
+		
+		#credit {
+			position: absolute;
+			width: 445px;
+    		height: 190px;
+			border: 1px solid #333;
+			margin: 15px;
+			padding: 5px 15px;
+			top:0;
+			left:0;
+			z-index: 100;
+		}
+		
+		#wildSelect {
+			text-align: center;
+			width: 500px;
+			height: 50px;
+			position: absolute;
+			left: 50%;
+			margin-left: -250px;
+			bottom: 60px;
+			z-index: 100;
+		}
+		
+		h1, h2 {
+			margin: 4px;
+		}
+		h2 {
+			font-weight: lighter;
+		}
+		li {
+			margin: 4px 0;
+		}
+		
+		.pname {
+			color: #4998B3;
+		}
+		
+		.your_pname {
+			color: #DEDE5F;
+		}
+		
+		span.pr { color: #C22323; font-weight: bold; }
+		span.pg { color: #3BBA22; font-weight: bold; } 
+		span.pb { color: #282BFA; font-weight: bold; }
+		span.py { color: #DEDE5F; font-weight: bold; }
+		
+	</style>
 	
 </head>
 
@@ -54,16 +121,29 @@ Three.js Board Game
 <script type="text/javascript" src="cardloader.js"></script>
 
 <body>
-
-	<div id="buttons">
-		<a href="#" onclick="submitWild('r')">red</a><br>
-		<a href="#" onclick="submitWild('g')">green</a><br>
-		<a href="#" onclick="submitWild('b')">blue</a><br>
-		<a href="#" onclick="submitWild('y')">yellow</a>
+	
+	<div id="messages">
 	</div>
 	
-	<div id="container">
+	<div id="credit">
+		<h1>UNO Replica</h1>
+		<h2>Austin Lasher - CAP4720</h2>
+		<br>
+		<ul>
+		<li>Drag a card to the stack to play it</li>
+		<li>Click the deck to draw</li>
+		<li>First player with no cards wins!</li>
+		</ul>
+	</div>
 	
+	<!-- WebGL Canvas Container -->
+	<div id="container"></div>
+	
+	<div id="wildSelect">
+		<button type="button" onclick="submitWild('r')" class="btn btn-danger btn-lg">Red</button>
+		<button type="button" onclick="submitWild('g')" class="btn btn-success btn-lg">Green</button>
+		<button type="button" onclick="submitWild('b')" class="btn btn-primary btn-lg">Blue</button>
+		<button type="button" onclick="submitWild('y')" class="btn btn-warning btn-lg">Yellow</button>
 	</div>
 	
 	<script type="text/javascript">
@@ -91,6 +171,16 @@ Three.js Board Game
 				case "turnStart":
 					turnStart(msgContent.player, msgContent.topCard, msgContent.hand);
 					break;
+				case "updateCards":
+					updatePlayerCards(msgContent.player, msgContent.hand);
+					break;
+				case "validMoves":
+					chooseBestBotMove(msgContent.player, msgContent.moves);
+					break;
+				case "playbyplay":
+					//console.log('just got ', msgContent.action, " play by play");
+					handleplaybyplay(msgContent.player, msgContent.action, msgContent.card);
+					break;
 				case "colorQuery":
 					askForColor(msgContent.player, msgContent.card);
 					break;
@@ -99,23 +189,79 @@ Three.js Board Game
 			}
 		}
 		
-		// This would be pretty cool, but the "necessity/implementation time" ratio seems a little low to me :)
-		/*var cardloader = new Worker("cardloader.js");
-		var cardMaterials = [];
-		cardloader.onmessage = function(event) {
-			var msgContent = event.data.content;
-			switch(event.data.type) {
-				case "complete":
+		// Post a message to our "console"
+		function handleplaybyplay(player, action, card) {
+			
+			var playerName = "Player "+player;
+			if(player == thisPlayer) playerName = "You";
+			
+			var spanclass = (player==thisPlayer) ? "your_pname" : "pname";
+			playerName = "<span class='"+spanclass+"'>" + playerName + "</span>";
+			
+			
+			
+			if(action == 'skipped') console.log("we did it reddit");
+			
+			switch(action) {
+				case "colorChange":
+					console.log("Player "+player+ " changed the color to \""+card.color+"\"");
+					consoleMessage("The color is <span class='p"+card.color+"'>"+colorCharToWord(card.color)+"</span>.", true);
+					//consoleMessage("Player "+player+ " changed the color to \""+card.color+"\"");
+					break;
+				case "playCard":
+					//printCard(card, "Player "+player+" played card: ");
+					consoleMessage(playerName+" just played a card: "+getCardString(card));
+					break;
+				case "drawCard":
+					//console.log("Player "+player+" decided to draw.");
+					consoleMessage(playerName+" drew a card.");
+					break;
+				case "skipped":
+					//consoleMessage(playerName+" just got skipped!");
 					break;
 				default:
-					console.log("did not recognize message from cardloader.js");
+					console.log("Did not recognize this play by play message");
 			}
-		}*/
+		}
+		
+		var messageFloatTime = 7000;
+		var messageFadeTime = 1500;
+		var maxMessages = 500;
+		var msgID = 0;
+		var lastColorDef;
+		
+		function consoleMessage(text, isColor) {
+			var mid = "msg"+msgID;
+			$("#messages").append("<p id='"+mid+"' class='msg'>"+text+"</p>");
+			
+			var def = $.Deferred();
+			if(!isColor) {
+				setTimeout(def.resolve, messageFloatTime);
+			} else {
+				if(typeof lastColorDef !== "undefined") {
+					lastColorDef.resolve();
+				}
+				lastColorDef = def;
+			}
+			
+			def.done(function() {
+				console.log("Fading out #"+mid, $("#"+mid));
+				$("#"+mid).fadeOut(messageFadeTime, $("#"+mid).remove);
+			});
+			
+			msgID = (msgID+1)%maxMessages;
+		}
+		
+		function colorMessage(color) {
+			
+		}
 		
 		var gameInitialized = false;
+		var whoseturn;
+		var thisPlayer = 0;
 		
 		// Start the game!
-		$("#buttons").hide();
+		$("#wildSelect").hide();
 		if(texturesLoaded) clientInit();
 		
 		
@@ -126,6 +272,8 @@ Three.js Board Game
 		function clientInit() {
 			gameInitialized = true;
 			graphicsInit();
+			
+			consoleMessage("Welcome to UNO Replica! Starting a fresh game.");
 			startNewGame();
 		}
 		
@@ -148,13 +296,24 @@ Three.js Board Game
 		
 		// When a player's turn starts, this function is called
 		function turnStart(player, topCard, hand) {
+			
 			// Rotate the camera to this side of the board :)
+			whoseturn = player;
 			printCard(topCard, "Top card is: ");
 			console.log("It's player "+player+"'s turn!");
-			printHand(hand);
+			//printHand(hand);
+			
+			makeStackCard(topCard);
+			
+			if(player != thisPlayer) {
+				// The bots need some time to think!
+				setTimeout(window.makeBotMove, 1500, player, topCard, hand);
+				return;
+			}
 			
 			// Here we go... actual graphics stuff
-			makeOurCards(hand);
+			updatePlayerCards(player, hand);
+			consoleMessage("<span class='your_pname'>It's your turn!</span>");
 		}
 		
 		// Tell the worker that this player is playing this card
@@ -183,10 +342,18 @@ Three.js Board Game
 		
 		function askForColor(player, card) {
 			// show a dialog that asks for the color of the wild card here
-			$("#buttons").show();
-			
 			wildcard = card;
 			wildplayer = player;
+			
+			if(player != thisPlayer) {
+				// That means this is a bot, so just submit a random color.
+				var c = colorPrefixes[Math.floor(Math.random()*colorPrefixes.length)];
+				submitWild(c);
+				return;
+			} else {
+				$("#wildSelect").fadeIn(500);
+			}
+			
 		}
 		
 		// After the box shows, allow each button to "submit" 
@@ -199,7 +366,17 @@ Three.js Board Game
 					"card": wildcard
 				}
 			});
-			$("#buttons").hide();
+			if(whoseturn == thisPlayer) $("#wildSelect").fadeOut(500);
+		}
+		
+		// We tell the server we want this turn to be chosen for us randomly
+		function makeBotMove(player, topCard, hand) {
+			cardstate.postMessage({
+				"type": "makeBotMove",
+				"content": {
+					"player": player
+				}
+			})
 		}
 		
 		////////////////////////////////////////////////
@@ -207,11 +384,10 @@ Three.js Board Game
 		////////////////////////////////////////////////
 		
 		var scene, renderer, camera, light;
-		var cube, table;
+		var cube, table, deckCard;
 		var mouse = new THREE.Vector3();
 		var raycaster = new THREE.Raycaster();
 		var container = document.getElementById("container");
-		var thisPlayer = 0;
 		
 		function graphicsInit() {
 			
@@ -272,37 +448,43 @@ Three.js Board Game
 			});
 			
 			cube = new THREE.Mesh(cubeg, woodmat);
-			//cube.position.z = -50;
 			table.add(cube);
+			
+			// Make the "deck"
+			var deckMat = new THREE.MeshLambertMaterial({map:cardTextures["back"]});
+			deckCard = new THREE.Mesh(cardGeometry, deckMat);
+			deckCard.position.x -= 1.15*cardWidth;
+			table.add(deckCard)
 		}
 		
 		
 		var draggableCards = [];
-		function cardTest() {
-			// Add a test card or two :)
-			// new THREE.MeshLambertMaterial({map:cardTextures["r4"]})
-			var card2 = new THREE.Mesh(cardGeometry, new THREE.MeshLambertMaterial({map:cardTextures["back"]}));
-			
-			// the stupid placeholder images don't work when requested via HTTP
-			// was a longshot anyway :(
-			// time for sleep
-			
-			card2.position.x = 0;
-			card2.position.z = 0;
-			card2.position.y = 0;
-			table.add(card2);
-			draggableCards.push(card2);
-		}
 		
 		// This function will need a LOT of work for future implementations
 		// Right now it statically places cards for just one player
-		var gap = 8;
+		var gap = 10;
 		var maxWidth = 150;
 		var distFromCenter = 65;
+		var stackCard;
+		
+		// We have to reupdate our meshes every time so the indexing
+		// between what we have and what the server has is consistent
+		function updatePlayerCards(player, hand) {
+			if(player == thisPlayer) {
+				
+				// Remove draggable cards from the scene, and from our array
+				for(var i = draggableCards.length-1; i >=0 ; i--) {
+					table.remove(draggableCards.pop());
+				}
+				
+				// Make new meshes!
+				makeOurCards(hand);
+			}
+		}
 		
 		function makeOurCards(hand) {
 			
-			console.log("Making our cards!", hand);
+			//console.log("Making our cards!", hand);
 			
 			// cardwidth is defined in cardloader.js
 			var width = gap*(hand.length-1) + cardWidth;
@@ -313,12 +495,14 @@ Three.js Board Game
 			
 			var start = -width/2;
 			var zval = 0;
-			var x = start;
+			var x = start + cardWidth/2;
 			for(var i = 0; i < hand.length; i++) {
-				var someCard = new THREE.Mesh(cardGeometry, new THREE.MeshLambertMaterial({map:cardTextures["back"]}));
+				
+				var someCard = new THREE.Mesh(cardGeometry, new THREE.MeshLambertMaterial({map:cardTextures[getTID(hand[i])]}));
 				someCard.position.x = x;
 				someCard.position.y = -distFromCenter;
 				someCard.position.z = zval;
+				someCard.CARD_INDEX = i;
 				table.add(someCard);
 				draggableCards.push(someCard);
 				
@@ -328,10 +512,33 @@ Three.js Board Game
 			
 		}
 		
+		// Called each new turn, when we need to set the new "stack" card
+		// It's just one, non draggable mesh
+		function makeStackCard(card) {
+			var newMat = new THREE.MeshLambertMaterial({map:cardTextures[getTID(card)]});
+			var newStackCard = new THREE.Mesh(cardGeometry, newMat);
+			
+			scene.add(newStackCard);
+			if(typeof stackCard != undefined) scene.remove(stackCard);
+			stackCard = newStackCard;
+		}
+		
+		// From a given card, get the appropriate ID in the texture dictionary
+		function getTID(card) {
+			if(card.type == "wild" || card.type == "wild4") return card.type;
+			else return (card.type=="normal") ? card.color+card.number : card.color+card.type;
+		}
+		
+		// This function is called when a mesh is dragged over the stack
+		function stackMesh(mesh) {
+			table.remove(mesh);
+			playCard(whoseturn, mesh.CARD_INDEX);
+		}
+		
 		// Main render loop
 		function render() {
 			
-			//table.rotation.y += 0.005; 
+			// table.rotation.y += 0.005; 
 			
 			requestAnimationFrame(render);
 			renderer.render( scene, camera );
@@ -346,6 +553,7 @@ Three.js Board Game
     	window.addEventListener('mousemove', window.mmove, false);
     	window.addEventListener(  'mouseup', window.mup, false);
     	var offset = new THREE.Vector3();
+    	var downOnDeck = false;
     	var pickedUp;
     	
 		function mdown(event) {
@@ -359,8 +567,6 @@ Three.js Board Game
 			if(intersects.length > 0) {
 				pickedUp = intersects[0].object;
 				
-				console.log("picked up", pickedUp);
-				
 				// Optional: grab the vector offset to make our drag fancy
 				/*intersects = raycaster.intersectObject( pickedUp, false );
 				if(intersects.length > 0) {
@@ -368,19 +574,41 @@ Three.js Board Game
 				}*/
 			}
 			
-			intersects = raycaster.intersectObject(cube, false);
+			var intersection = raycaster.intersectObject(deckCard, false);
+			if(intersection.length>0) {
+				downOnDeck = true;
+			}
+			
+			/*intersects = raycaster.intersectObject(cube, false);
 			if(intersects.length > 0) {
 				console.log("clicked cube at point", intersects[0].point);
-			}
+			}*/
 		}
 		
 		function mup(event) {
 			event.preventDefault();
 			
 			if(typeof pickedUp != "undefined") {
+				
+				if(getXYDist(pickedUp.position, stackCard.position) <= 10.0) {
+					if(whoseturn == thisPlayer) stackMesh(pickedUp);
+				}
+				
 				pickedUp = undefined;
+				
+			} else {
+				
+				// Do a ray trace to see if we're over the deck
+				
+				var intersection = raycaster.intersectObject(deckCard, false);
+				if(intersection.length>0 && downOnDeck) {
+					// If we did a full press on the deck, then draw a card.
+					if(whoseturn == thisPlayer) drawCard(whoseturn);
+				}
+				
 			}
 			
+			downOnDeck = false;
 		}
 		
 		function mmove(event) {
@@ -428,10 +656,38 @@ Three.js Board Game
 			if(c.type == "normal") {
 				console.log(msg, c.type, c.color, c.number);
 			} else if(c.type == "wild" || c.type == "wild4") {
-				console.log(msg, c.type);
+				console.log(msg, c.type, "Color is: ", c.color);
 			} else {
 				console.log(msg, c.type, c.color);
 			}
+		}
+		
+		function getCardString(c) {
+			var msg = "";
+			var cword = colorCharToWord(c.color);
+			
+			if(c.type == "normal") {
+				msg += cword + " " + c.number;
+			} else if(c.type == "wild" || c.type == "wild4") {
+				msg += c.type + " ("+cword+")";
+			} else {
+				msg += cword + c.type;
+			}
+			
+			return msg;
+		}
+		
+		function colorCharToWord(c) {
+			if(c == 'r') return 'red';
+			if(c == 'g') return 'green';
+			if(c == 'b') return 'blue';
+			if(c == 'y') return 'yellow';
+			else return 'unknown';
+		}
+		
+		// Given two position vectors, return distance in XY projection
+		function getXYDist(a, b) {
+			return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));
 		}
 		
 		// Add our event listeners

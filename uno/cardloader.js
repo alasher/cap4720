@@ -13,7 +13,7 @@ var colorWords = ["red", "green", "blue", "yellow"];
 var colorHex = ["ff0000", "00ff00", "0000ff", "ffff00"];
 var specialType = ["skip", "reverse", "draw2"];
 var wildType = ["wild", "wild4"];
-var usePlaceholder = true;
+var usePlaceholder = false;
 var DEBUG = false;
 
 var csize = "256x384";
@@ -43,7 +43,7 @@ var loader = new THREE.TextureLoader();
 // Get normal cards
 for(var i = 1; i < 10; i++) {
 	for(var j = 0; j < 4; j++) {
-		var url = "cards/"+colorPrefixes[j]+i+".jpg";
+		var url = "cards/"+colorPrefixes[j]+i+".png";
 		//if(usePlaceholder) url = "http://placehold.it/"+csize+"/"+colorHex[j]+"/ffffff.jpg/?text="+colorWords[j]+i;
 		
 		loadTexture(colorPrefixes[j]+i, url);
@@ -53,7 +53,7 @@ for(var i = 1; i < 10; i++) {
 // Special cards
 for(var i = 0; i < 3; i++) {
 	for(var j = 0; j < 4; j++){
-		var url = "images/"+colorPrefixes[j]+specialType[i]+".jpg";
+		var url = "cards/"+colorPrefixes[j]+specialType[i]+".png";
 		if(usePlaceholder) url = "http://placehold.it/"+csize+"/"+colorHex[j]+"/ffffff.jpg/?text="+colorWords[j]+"%20"+specialType[i];
 		
 		loadTexture(colorPrefixes[j]+specialType[i], url);
@@ -62,7 +62,7 @@ for(var i = 0; i < 3; i++) {
 
 // Wild cards
 for(var i = 0; i < 2; i++) {
-	var url = "images/"+wildType[i]+".jpg";
+	var url = "cards/"+wildType[i]+".png";
 	if(usePlaceholder) url = "http://placehold.it/"+csize+"/000000/ffffff.jpg/?text="+wildType[i];
 	
 	loadTexture(wildType[i], url);
@@ -72,22 +72,6 @@ for(var i = 0; i < 2; i++) {
 var cardBackURL = "cards/back.jpg";
 //if(usePlaceholder) cardBackURL = "http://placehold.it/256x384/000000/ff0000.jpg/?text=UNO";
 loadTexture("back", cardBackURL);
-
-// Other textures here
-/*var woodMaterial;
-var woodURL = 'images/wood.jpg';
-loader.load(
-	woodURL,
-	function(texture) {
-		window.woodMaterial = new THREE.MeshBasicMaterial({
-			map: texture
-		});
-	},
-	null,
-	function(err) {
-		console.warn("could not load wood background texture");
-	}
-);*/
 
 // Use Three.js's fancy new load texture function to get textures asynchronously
 function loadTexture(id, url) {
